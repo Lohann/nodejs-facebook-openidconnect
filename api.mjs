@@ -3,58 +3,60 @@ import * as dotenv from 'dotenv';
 import bodyParser from "body-parser";
 import { Issuer, generators } from 'openid-client';
 
-// Configurações
+// APP Settings
 dotenv.config();
 const {
     FACEBOOK_CLIENT_ID,
-    FACEBOOK_REDIRECT_URL, // Precisa ser HTTPS, lembre de cadastrar em 
+    FACEBOOK_REDIRECT_URL, // MUST BE CONFIGURED IN THE FACEBOOK's APP -> Settings -> Facebook Login -> Valid OAuth Redirect URIs
     APP_PORT,
 } = process.env;
 
 // Facebook OIDC Client
-const facebookIssuer = await Issuer.discover('https://www.facebook.com');
+// Behind the scenes, it calls https://www.facebook.com/.well-known/openid-configuration
+// and retrieve all information needed to authenticate with Facebook
+const facebookIssuer = await Issuer.discover('https://www.facebook.com'); 
 const facebookClient = new facebookIssuer.Client({
     client_id: FACEBOOK_CLIENT_ID,
     redirect_uris: [FACEBOOK_REDIRECT_URL],
     response_types: ['id_token'], // Facebook only supports Implicit Flow
 });
 
-// Configurações do EXPRESS
+// Express Settings
 const app = express();
-
 app.use(bodyParser.json());     // to support JSON-encoded bodies
 app.use(bodyParser.urlencoded({ // to support URL-encoded bodies
   extended: true
 }));
 
-// Mock de um banco de dados
+// Database Mock
 const DATABASE = {
-    // Tabela LOGIN_STATES
+    // LOGIN_STATES Table
     states: {},
 
-    // Tabela USERS
+    // USERS Table
     users: {},
 
-    // Tabela SESSIONS
+    // SESSIONS Table
     sessions: {},
 };
 
 /**
- * Endpoint que inicia o processo de login com o facebook
- * São persistidos um state e nonce aleatórios e então o usuário é redirecionado para a URL de autorização do facebook
+ * Initiate the facebook login process
+ * first it creates and store the session's state and nonce, then the user
+ * is redirect to facebook's authorization endpoint
  */
 app.get('/facebook/login', async (req, res) => {
-    // Cria um state e um nonce aleatórios
+    // Creates a random state and nonce
     const state = generators.state();
     const nonce = generators.nonce();
 
-    // Armazena o state e o nonce no banco de dados
+    // Stores the state and nonce in the database
     DATABASE.states[state] = {
         nonce,
-        expires_at: Date.now() + (15 * 60 * 1000), // expira em 15 minutos
+        expires_at: Date.now() + (15 * 60 * 1000), // expires in 15 minutes
     };
 
-    // Cria uma URL de autorização para o facebook
+    // Creates the authorization URL
     const authorizationUrl = facebookClient.authorizationUrl({
         scope: 'openid',
         response_mode: 'fragment',
@@ -62,65 +64,73 @@ app.get('/facebook/login', async (req, res) => {
         nonce,
     });
 
-    // Redireciona o usuário para a URL de autorização criada acima
+    // Redirects the user to facebook's authorization url
     res.redirect(authorizationUrl);
 });
 
 /**
- * Endpoint que autentica o usuário com o facebook
- * O usuário deve fornecer um state e um id_token, se forem válidos,
- * é emitido um access_token para o usuário
+ * This endpoint authenticates the user with facebook
+ * first the user must provide the state and id_token, then the state is validated
+ * and the id_token is verified
  */
 app.post('/facebook/login', async (req, res) => {
     const { state, id_token } = req.body;
 
-    // Valida se o id_token foi fornecido
+    // Check if the id_token was provided
     if (!id_token) {
         res.status(412).json({ error: 'id_token is required' });
         return;
     }
 
-    // Valida se o state fornecido existe no banco de dados
+    // Check if the state provided exists in the database
     if (!state || !DATABASE.states[state]) {
         res.status(400).json({ error: 'Invalid state' });
         return;
     }
 
-    // Verifica se o state expirou
+    // Check if the state has expired
     const { nonce, expires_at } = DATABASE.states[state];
     if (Date.now() >= expires_at) {
-        // Apaga o state do banco de dados
+        // Delete the state from the database
         delete DATABASE.states[state];
        
-        // Retorna um erro
+        // Return an error
         res.status(400).json({ error: 'this state has expired' });
         return;
     }
 
     let tokenSet;
     try {
-        // Valida se o ID_TOKEN e o NONCE são válidos
+        // Ref: https://github.com/panva/node-openid-client/blob/v5.4.2/lib/client.js#L875-L1059
+        //
+        // 1 - Check if the id_token is a valid JWT
+        // 2 - Check if the id_token has expired
+        // 3 - Check if the id_token's payload.aud is equal to FACEBOOK_CLIENT_ID
+        // 4 - Check if the id_token's payload.iss is equal to the facebook's issuer
+        // 5 - Check if the id_token's payload.nonce is equal to the state's nonce
+        // 6 - Check if the id_token's header.alg is listed in the facebook's jwks_uri
+        // 7 - Check if the id_token's signature was signed by one of facebook's jwks_uri public keys
         tokenSet = await facebookClient.callback(
             FACEBOOK_REDIRECT_URL,
-            { id_token },
+            { id_token, response_type: 'id_token' },
             { nonce }
         );
     } catch(error) {
-        // Se o ID_TOKEN for inválido, retorne um erro
-        res.status(400).json({ error: JSON.stringify(error) });
+        // If the id_token is invalid, return an error
+        res.status(400).json({ error: error.message });
         return;
     }
 
-    // ID_TOKEN é válido, então apague o state do banco de dados, ele não é mais necessário
+    // the id_token is valid, so we can delete the state from the database
     delete DATABASE.states[state];
 
-    // Le as informações do ID_TOKEN
+    // read the user information from the id_token
     const { sub, email } = tokenSet.claims();
     
-    // Verifica se o usuário já esta cadastrado no banco de dados
+    // verifies if the user is already registered in the database
     const user_id = `facebook-${sub}`;
     if (!DATABASE.users[user_id]) {
-        // Se não estiver, cadastra dele no banco de dados
+        // if not, register the user in the database
         DATABASE.users[user_id] = {
             id: user_id,
             email,
@@ -128,82 +138,82 @@ app.post('/facebook/login', async (req, res) => {
         };
     }
 
-    // Cria um access_token opaco para o usuário logado
-    const access_token = generators.random();
-    const access_token_expires_at = Date.now() + (24 * 60 * 60 * 1000); // expira em 24 horas
-
-    // Armazena o access_token no banco de dados
-    DATABASE.sessions[access_token] = {
+    // creates a new session for the user
+    const session = {
+        access_token: generators.random(),
         user_id: user_id,
-        expires_at: access_token_expires_at,
+        expires_at: Date.now() + (24 * 60 * 60 * 1000), // expires in 24 hours
+        token_type: 'bearer',
     };
 
-    // Retorna o access_token para o usuário logado
-    res.status(200).json({
-        access_token,
-        expires_at: access_token_expires_at,
-        token_type: 'bearer'
-    });
+    // stores the session in the database
+    DATABASE.sessions[session.access_token] = session;
+
+    // returns the access_token and the expires_at timestamp
+    res.status(200).json(session);
 });
 
 /**
- * Middleware que verifica se o usuário esta autenticado
+ * Authentication Middleware
  * @param {*} req 
  * @param {*} res 
  * @param {*} next 
  * @returns 
  */
 const authenticationMiddleware = (req, res, next) => {
-    const { authorization } = req.headers; // Recupera o header Authorization
+    const { authorization } = req.headers; // retrieve the Authorization Header from the request
 
     if (!authorization) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
 
-    // remove o prefixo 'Bearer '
-    let access_token = authorization;
+    // Check if the Authorization Header is in the format 'Bearer <access_token>'
     if (authorization.startsWith('Bearer ')) {
-        access_token = authorization.substr(7);
+        res.status(401).json({ error: 'unauthorized' });
+        return;
     }
 
-    // Verifica se a sessão existe no banco de dados
+    // Removes 'Bearer ' prefix
+    const access_token = authorization.substr(7);
+
+    // checks if the access_token exists in the database
     const session = DATABASE.sessions[access_token];
     if (!session) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
 
-    // Verifica se a sessão expirou
+    // checks if the access_token has expired
     if (Date.now() >= session.expires_at) {
-        // Deleta a sessão do banco de dados
+        // deletes the session from the database
         delete DATABASE.sessions[access_token];
         res.status(401).json({ error: 'session expired' });
         return;
     }
 
-    // Armazena as informações da sessão na requisição
+    // stores the session in the request
     req.session = session;
     next();
 };
 
 /**
- * Exemplo de endpoint protegido, o usuário precisa estar autenticado para acessar
+ * protected endpoint to retrieve the user information
  **/ 
 app.get('/user-info', authenticationMiddleware, async (req, res) => {
     const { session } = req;
 
-    // Le o id do usuário logado
+    // read the user_id from the session
     const { user_id } = session;
 
-    // Le as informações do usuário do banco de dados
+    // retrieves the user from the database
     const user = DATABASE.users[user_id];
 
-    // Retorna as informações do usuário
+    // returns the user information
     res.status(200).json(user)
 });
 
-// Inicia o servidor
+// starts the server
 app.listen(APP_PORT, () => {
     console.log(`App listening at http://localhost:${APP_PORT}`)
 })

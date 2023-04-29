@@ -1,13 +1,13 @@
 {
   "name": "facebook-login-example",
   "version": "1.0.0",
-  "description": "",
+  "description": "Example of Facebook Login using OpenID Connect",
   "main": "index.js",
   "scripts": {
     "start": "node api.mjs"
   },
-  "author": "",
-  "license": "ISC",
+  "author": "Lohann Paterno Coutinho Ferreira",
+  "license": "MIT",
   "dependencies": {
     "body-parser": "^1.20.2",
     "dotenv": "^16.0.3",
