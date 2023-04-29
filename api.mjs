@@ -169,7 +169,7 @@ const authenticationMiddleware = (req, res, next) => {
     }
 
     // Check if the Authorization Header is in the format 'Bearer <access_token>'
-    if (authorization.startsWith('Bearer ')) {
+    if (!authorization.startsWith('Bearer ')) {
         res.status(401).json({ error: 'unauthorized' });
         return;
     }
