@@ -1,6 +1,8 @@
 # Facebook OpenID Connect example
 
-this project is an example on how to authenticate on facebook's using OIDC.
+This project is an example of how to implement "Login with Facebook" using facebook's OIDC.
+
+For more information about OpenID Connection, [check this link](https://openid.net/developers/specs/).
 
 ## Setup
 
@@ -53,8 +55,9 @@ If everything works fine, the server will return an `access_token` and yours `us
 ```
 Now you can use that `access_token` to access protected routes, like `GET /user-info`.
 
-> Note: In the real world, the front-end app will collect the `id_token` and `state` and automatically call the `POST http://localhost:8080/facebook/login`, but without `https` we can't redirect facebook's response to our route, we could use a tool like [ngrok](https://ngrok.com/) to solve this issue, but implementing a front-end and configuring ngrok is out of the scope of this example project.
-
+### Why manually copy id_token and state?
+In the real world, the front-end app will collect the `id_token` and `state` and automatically call the `POST http://localhost:8080/facebook/login`, but without `https` we can't redirect facebook's response to our route.
+We could use a tool like [ngrok](https://ngrok.com/) to solve this issue, but implementing a front-end and configuring ngrok is out of the scope of this example project.
 
 ## Facebook's OIDC
 Currently, facebook only support **OIDC Implicit Flow**, notice that in facebook's [openid-configuration](https://www.facebook.com/.well-known/openid-configuration/) the `response_types_supported` doesn't list `code`, also the `token_endpoint` is missing:
