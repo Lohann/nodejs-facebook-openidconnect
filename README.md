@@ -6,8 +6,8 @@ For more information about OpenID Connection, [check this link](https://openid.n
 
 ## Setup
 
-### Step 1 - Create an Facebook's App
-Guide: [https://developers.facebook.com/docs/development/create-an-app/](https://developers.facebook.com/docs/development/create-an-app/)
+### Step 1 - Create a Facebook's App
+Follow this guide: [https://developers.facebook.com/docs/development/create-an-app/](https://developers.facebook.com/docs/development/create-an-app/)
 
 In the APP dashboard, go to `Add a product` section and set up `Facebook Login`, then set `https://oidcdebugger.com/debug` in the `Valid OAuth Redirect URIs`.
 
@@ -33,12 +33,8 @@ With the server running, open your browser and access [GET http://localhost:8080
 
 You will be redirected to Facebook's Login page, allow and continue.
 
-Currently facebook's OIDC only allows `response_mode=fragment`, which means only the web browser can collect the response payload. Even with a frontend, facebook's only accepts HTTPS Url's in `Valid OAuth Redirect URIs`. So to keep this example simple, you have to manually copy both `id_token` and `state`, then submit it to `POST http://localhost:8080/facebook/login`:
+Currently facebook's OIDC only allows `response_mode=fragment`, which means only the web browser can collect the response payload. Even with a frontend, facebook's only accepts HTTPS Url's in the `Valid OAuth Redirect URIs`. So to keep this example simple, you have to manually copy both `id_token` and `state`, then submit it to `POST http://localhost:8080/facebook/login`:
 ```json
-POST /facebook/login HTTP/1.1
-Host: localhost:8080
-Content-type: application/json
-
 {
     "id_token": "...",
     "state": "..."
