@@ -125,7 +125,7 @@ app.post('/facebook/login', async (req, res) => {
     delete DATABASE.states[state];
 
     // read the user information from the id_token
-    const { sub, email } = tokenSet.claims();
+    const { sub, name } = tokenSet.claims();
     
     // verifies if the user is already registered in the database
     const user_id = `facebook-${sub}`;
@@ -133,7 +133,7 @@ app.post('/facebook/login', async (req, res) => {
         // if not, register the user in the database
         DATABASE.users[user_id] = {
             id: user_id,
-            email,
+            name,
             created_at: Date.now(),
         };
     }
