@@ -1,8 +1,8 @@
 {
-  "name": "facebook-login-example",
+  "name": "nodejs-facebook-openidconnect",
   "version": "1.0.0",
   "description": "Example of Facebook Login using OpenID Connect",
-  "main": "index.js",
+  "main": "api.js",
   "scripts": {
     "start": "node api.mjs"
   },
