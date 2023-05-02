@@ -2,6 +2,8 @@ import express from "express";
 import * as dotenv from 'dotenv';
 import bodyParser from "body-parser";
 import { Issuer, generators } from 'openid-client';
+import { Authenticator } from 'passport';
+import { Strategy } from 'passport-http-bearer';
 
 // APP Settings
 dotenv.config();
@@ -37,6 +39,28 @@ const DATABASE = {
     // SESSIONS Table
     sessions: {},
 };
+
+// Passport Authenticator Settings
+const authenticator = new Authenticator();
+authenticator.use(new Strategy(
+    function(token, done) {
+        // checks if the access_token exists in the database
+        const session = DATABASE.sessions[token];
+        if (!session) {
+            return done('unauthorized', false);
+        }
+
+        // checks if the access_token has expired
+        if (Date.now() >= session.expires_at) {
+            // deletes the session from the database
+            delete DATABASE.sessions[token];
+            return done('session expired', false);
+        }
+
+        // returns the session
+        return done(null, session, { scope: 'all' });
+    }
+));
 
 /**
  * Initiate the facebook login process
@@ -152,54 +176,10 @@ app.post('/facebook/login', async (req, res) => {
 });
 
 /**
- * Authentication Middleware
- * @param {*} req 
- * @param {*} res 
- * @param {*} next 
- * @returns 
- */
-const authenticationMiddleware = (req, res, next) => {
-    const { authorization } = req.headers; // retrieve the Authorization Header from the request
-
-    if (!authorization) {
-        res.status(401).json({ error: 'unauthorized' });
-        return;
-    }
-
-    // Check if the Authorization Header is in the format 'Bearer <access_token>'
-    if (!authorization.startsWith('Bearer ')) {
-        res.status(401).json({ error: 'unauthorized' });
-        return;
-    }
-
-    // Removes 'Bearer ' prefix
-    const access_token = authorization.substr(7);
-
-    // checks if the access_token exists in the database
-    const session = DATABASE.sessions[access_token];
-    if (!session) {
-        res.status(401).json({ error: 'unauthorized' });
-        return;
-    }
-
-    // checks if the access_token has expired
-    if (Date.now() >= session.expires_at) {
-        // deletes the session from the database
-        delete DATABASE.sessions[access_token];
-        res.status(401).json({ error: 'session expired' });
-        return;
-    }
-
-    // stores the session in the request
-    req.session = session;
-    next();
-};
-
-/**
  * protected endpoint to retrieve the user information
  **/ 
-app.get('/user-info', authenticationMiddleware, async (req, res) => {
-    const { session } = req;
+app.get('/user-info', authenticator.authenticate('bearer', { session: false }), (req, res) => {
+    const session = req.user;
 
     // read the user_id from the session
     const { user_id } = session;
@@ -209,14 +189,6 @@ app.get('/user-info', authenticationMiddleware, async (req, res) => {
 
     // returns the user information
     res.status(200).json(user)
-});
-
-/**
- * protected endpoint to retrieve the user information
- **/ 
-app.get('/users', authenticationMiddleware, async (req, res) => {
-    // returns the user information
-    res.status(200).json(Object.values(DATABASE.users))
 });
 
 // starts the server
