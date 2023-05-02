@@ -12,9 +12,7 @@ const {
 } = process.env;
 
 // Facebook OIDC Client
-// Behind the scenes, it calls https://www.facebook.com/.well-known/openid-configuration
-// and retrieve all information needed to authenticate with Facebook
-const facebookIssuer = await Issuer.discover('https://www.facebook.com'); 
+const facebookIssuer = await Issuer.discover('https://www.facebook.com/.well-known/openid-configuration'); 
 const facebookClient = new facebookIssuer.Client({
     client_id: FACEBOOK_CLIENT_ID,
     redirect_uris: [FACEBOOK_REDIRECT_URL],
@@ -211,6 +209,14 @@ app.get('/user-info', authenticationMiddleware, async (req, res) => {
 
     // returns the user information
     res.status(200).json(user)
+});
+
+/**
+ * protected endpoint to retrieve the user information
+ **/ 
+app.get('/users', authenticationMiddleware, async (req, res) => {
+    // returns the user information
+    res.status(200).json(Object.values(DATABASE.users))
 });
 
 // starts the server

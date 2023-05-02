@@ -2,9 +2,9 @@
 
 This project is an example of how to implement "Login with Facebook" using facebook's OIDC.
 
-For more information about OpenID Connection, [check this link](https://openid.net/developers/specs/).
+For more information about OpenID Connect, [check this link](https://openid.net/developers/specs/).
 
-## Setup
+## Getting Started
 
 ### Step 1 - Create a Facebook's App
 Follow this guide: [https://developers.facebook.com/docs/development/create-an-app/](https://developers.facebook.com/docs/development/create-an-app/)
@@ -12,7 +12,7 @@ Follow this guide: [https://developers.facebook.com/docs/development/create-an-a
 In the APP dashboard, go to `Add a product` section and set up `Facebook Login`, then set `https://oidcdebugger.com/debug` in the `Valid OAuth Redirect URIs`.
 
 ### Step 2 - Configure the project
-Copy the `.env.example` file
+clone the `.env.example` to `.env` file
 ```bash
 cp .env.example .env
 ```
